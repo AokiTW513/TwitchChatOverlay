@@ -38,6 +38,8 @@ def on_open(ws):
     ws.send(f"NICK {nickname}")
     ws.send(f"JOIN {channel}")
     print(f"チャット入りました！チャンネルは{channel}です！")
+    reply = "MrDestructoid チャット入りました！"
+    send_message_to_chat(ws, reply)
 
 #WebSocket メッセージ受けた時
 def on_message(ws, message):
@@ -71,14 +73,20 @@ def on_message(ws, message):
 
             #特殊コマンド
             if content.strip().startswith("早安"):
-                now = datetime.datetime.now()  # 取得現在時間
-                hour = now.hour       # 取得小時（0~23）
+                now = datetime.datetime.now() #取得現在時間
+                hour = now.hour #取得小時（0~23）
                 if 5 <= hour < 12:
                     reply = f"{user} 早啊 aokitwGood"
                     send_message_to_chat(ws, reply)
                 else:
                     reply = f"{user} 不是，早個屁，都{hour}點了 aokitwHatena"
                     send_message_to_chat(ws, reply)
+                
+            if (content.strip().startswith("!csv") or content.strip().startswith("!CSV")) and user == CHANNEL:
+                global responses 
+                responses = load_responses('responses.csv')
+                reply = "CSVリセットしました！"
+                send_message_to_chat(ws, reply)
 
         except Exception as e:
             print(f"メッセージ分析失敗: {e}")
