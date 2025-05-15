@@ -175,4 +175,4 @@ cython_debug/
 
 # txt,config.py
 config.py
-.txt
+*.txt
