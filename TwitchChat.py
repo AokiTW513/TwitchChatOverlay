@@ -2,6 +2,7 @@ import threading
 import websocket
 import time
 import datetime
+import csv
 from config import *
 
 #config.pyから資料取ります
@@ -13,6 +14,23 @@ twitchWebsocketURL = TwitchWebsocketURL
 #今日の日付
 today = datetime.date.today().strftime('%Y%m%d')
 
+#csvからコマンドを読み込める
+def load_responses(filename):
+    responses = {}
+    with open(filename, newline='', encoding='utf-8-sig') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            responses[row['trigger']] = row['response']
+    return responses
+
+responses = load_responses('responses.csv')
+
+def check_and_reply(message):
+    for trigger, reply in responses.items():
+        if trigger in message:
+            return reply
+    return None
+
 # WebSocket 接続成功した時
 def on_open(ws):
     print("接続成功、ログイン中...")
@@ -20,7 +38,6 @@ def on_open(ws):
     ws.send(f"NICK {nickname}")
     ws.send(f"JOIN {channel}")
     print(f"チャット入りました！チャンネルは{channel}です！")
-
 
 #WebSocket メッセージ受けた時
 def on_message(ws, message):
@@ -45,12 +62,29 @@ def on_message(ws, message):
                 f.write(f"{time.strftime('%H:%M:%S --',localTime)} " + user + ': ' + content)
 
             #コマンド
-            if content.strip().startswith("安安"):
+            """ if content.strip().startswith("安安"):
                 reply = f"{user} ニーハオ！"
-                ws.send(f"PRIVMSG {channel} :{reply}")
+                send_message_to_chat(ws, reply) """
+            reply = check_and_reply(message)
+            if reply:
+                send_message_to_chat(ws, reply)
+
+            #特殊コマンド
+            if content.strip().startswith("早安"):
+                now = datetime.datetime.now()  # 取得現在時間
+                hour = now.hour       # 取得小時（0~23）
+                if 5 <= hour < 12:
+                    reply = f"{user} 早啊 aokitwGood"
+                    send_message_to_chat(ws, reply)
+                else:
+                    reply = f"{user} 不是，早個屁，都{hour}點了 aokitwHatena"
+                    send_message_to_chat(ws, reply)
 
         except Exception as e:
             print(f"メッセージ分析失敗: {e}")
+
+def send_message_to_chat(ws, reply):
+    ws.send(f"PRIVMSG {channel} :{reply}")
 
 #WebSocket エラーの時
 def on_error(ws, error):
