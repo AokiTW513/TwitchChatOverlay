@@ -1,6 +1,7 @@
 # TwitchChatOverlay
 配信用のオーバーレイ
 
+create a config.py:
 ```
 Access_Token = ''
 BOT_NICK = ''

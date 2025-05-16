@@ -31,7 +31,7 @@ def check_and_reply(message):
             return reply
     return None
 
-# WebSocket 接続成功した時
+#WebSocket 接続成功した時
 def on_open(ws):
     print("接続成功、ログイン中...")
     ws.send(f"PASS {access_token}")
@@ -69,28 +69,44 @@ def on_message(ws, message):
                 send_message_to_chat(ws, reply) """
             reply = check_and_reply(message)
             if reply:
-                send_message_to_chat(ws, reply)
+                send_message_to_chat(ws, f"@{user} {reply}")
 
             #特殊コマンド
             if content.strip().startswith("早安"):
-                now = datetime.datetime.now() #取得現在時間
-                hour = now.hour #取得小時（0~23）
+                now = datetime.datetime.now() #今の時間
+                hour = now.hour #今何時
                 if 5 <= hour < 12:
-                    reply = f"{user} 早啊 aokitwGood"
+                    reply = f"@{user} 早啊 aokitwGood"
                     send_message_to_chat(ws, reply)
                 else:
-                    reply = f"{user} 不是，早個屁，都{hour}點了 aokitwHatena"
+                    reply = f"@{user} 不是，早個屁，都{hour}點了 aokitwHatena"
                     send_message_to_chat(ws, reply)
-                
+
+            #テスト
+            if (content.strip().startswith("!テスト")  or content.strip().startswith("!test")) and user == CHANNEL:
+                reply = "無事に実行されました！"
+                send_message_to_chat(ws, reply)
+            
+            #!csv入力すればCSVリセットできる
             if (content.strip().startswith("!csv") or content.strip().startswith("!CSV")) and user == CHANNEL:
                 global responses 
                 responses = load_responses('responses.csv')
                 reply = "CSVリセットしました！"
                 send_message_to_chat(ws, reply)
-
+            
+            #チャットボット終了
+            if content.strip().startswith("!終了") or content.strip().startswith("!end") and user == CHANNEL:
+                print("終了します")
+                reply = "チャットボット終了します"
+                send_message_to_chat(ws, reply)
+                ws.send(f"PART {channel}")
+                print("チャットを離れました")
+                ws.close()
+                
         except Exception as e:
             print(f"メッセージ分析失敗: {e}")
 
+#チャットにメッセージ送る
 def send_message_to_chat(ws, reply):
     ws.send(f"PRIVMSG {channel} :{reply}")
 
