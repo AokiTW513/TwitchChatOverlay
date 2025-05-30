@@ -175,4 +175,5 @@ cython_debug/
 
 # txt,config.py
 config.py
+responses.csv
 *.txt
