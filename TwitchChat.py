@@ -153,7 +153,7 @@ class PopupManager:
     # 快速鍵開啟回覆聊天室用的視窗
     def setup_hotkey(self):
     # 使用 keyboard 全局監聽熱鍵（非 Tkinter 綁定）
-        keyboard.add_hotkey('ctrl+shift+r', lambda: self.root.after(0, self.open_reply_window))
+        keyboard.add_hotkey('ctrl+shift+v', lambda: self.root.after(0, self.open_reply_window))
         keyboard.add_hotkey('ctrl+shift+f', lambda: self.root.after(0, self.toggle_popup))
 
     # 開關是否顯示彈跳視窗
