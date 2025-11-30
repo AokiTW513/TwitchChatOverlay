@@ -79,6 +79,44 @@ class PopupManager:
 
             self.popup.after_id = self.popup.after(duration, self.popup.destroy)
 
+    # 顯示提醒視窗
+    def show_popupWarning(self, message, duration=5000):
+        text = message
+
+        if self.popup is not None and self.popup.winfo_exists():
+            label = self.popup.label
+            label.config(text=text, wraplength=600)
+            self.resize_popup(text)
+            self.popup.after_cancel(self.popup.after_id)
+            self.popup.after_id = self.popup.after(duration, self.popup.destroy)
+        else:
+            self.popup = tk.Toplevel(self.root)
+            self.popup.overrideredirect(True)
+            self.popup.attributes("-topmost", True)
+            self.popup.configure(
+                bg="#1e1e1e",
+                highlightbackground="#ffffff",  # 邊框顏色
+                highlightthickness=3           # 邊框寬度（像素）
+            )
+
+            self.popup.label = tk.Label(self.popup,
+                                        text=text,
+                                        font=self.font,
+                                        fg="#e70000",
+                                        bg="#1e1e1e",
+                                        anchor="w",
+                                        justify="left",
+                                        wraplength=600)
+            self.popup.label.pack(fill="both", padx=10, pady=10)
+
+            self.resize_popup(text)
+
+            x, y = 20, 40
+
+            self.popup.geometry(f"{self.width}x{self.height}+{x}+{y}")
+
+            self.popup.after_id = self.popup.after(duration, self.popup.destroy)
+
     # 更新視窗大小
     def resize_popup(self, text):
         paddingX = 30
@@ -122,7 +160,7 @@ class PopupManager:
     def toggle_popup(self, event=None):
         self.canPopup = not self.canPopup
 
-        self.bot.send_message_to_chat(global_ws, f"彈窗已{'啟用' if self.canPopup else '關閉'}")
+        self.show_popupWarning(f"彈窗已{'啟用' if self.canPopup else '關閉'}")
 
     # 開啟回覆聊天室用的視窗
     def open_reply_window(self, event=None):
