@@ -20,8 +20,6 @@ class PopupManager:
 
         self.bot = None
 
-        self.canPopup = True
-
         self.check_queue()
 
         self.setup_hotkey()
@@ -40,9 +38,6 @@ class PopupManager:
 
     # 顯示視窗
     def show_popup(self, user, message, duration=5000):
-        if not self.canPopup:
-            return
-        
         text = f"{user}: {message}"
 
         if self.popup is not None and self.popup.winfo_exists():
@@ -115,14 +110,7 @@ class PopupManager:
     # 快速鍵開啟回覆聊天室用的視窗
     def setup_hotkey(self):
     # 使用 keyboard 全局監聽熱鍵（非 Tkinter 綁定）
-        keyboard.add_hotkey('ctrl+shift+r', lambda: self.root.after(0, self.open_reply_window))
-        keyboard.add_hotkey('ctrl+shift+f', lambda: self.root.after(0, self.toggle_popup))
-
-    # 開關是否顯示彈跳視窗
-    def toggle_popup(self, event=None):
-        self.canPopup = not self.canPopup
-
-        self.bot.send_message_to_chat(global_ws, f"彈窗已{'啟用' if self.canPopup else '關閉'}")
+        keyboard.add_hotkey('ctrl+shift+t', lambda: self.root.after(0, self.open_reply_window))
 
     # 開啟回覆聊天室用的視窗
     def open_reply_window(self, event=None):
@@ -191,7 +179,9 @@ class TwitchBot:
 
         self.popup_manager = None
         self.responses = self.load_responses('responses.csv')
-
+        
+        self.isPopup = False
+    
     def set_popup_manager(self, popup_manager):
         self.popup_manager = popup_manager
 
@@ -244,7 +234,8 @@ class TwitchBot:
                 content = message.split("PRIVMSG", 1)[1].split(":", 1)[1]
                 print(f"{user}: {content.strip()}") #stripはstringの前後の\nとか削除するもの
 
-                self.show_popup(user, content.strip())
+                if self.isPopup:
+                    self.show_popup(user, content.strip())
             
                 #チャットログ
                 with open(self.today + '_chat' + '.txt', 'a', encoding='utf-8-sig') as f :

@@ -16,11 +16,9 @@ class PopupManager:
 
         self.queue = queue.Queue()
         self.popup = None
-        self.font = tkFont.Font(family="Arial", size=18)
+        self.font = tkFont.Font(family="Arial", size=16)
 
         self.bot = None
-
-        self.canPopup = True
 
         self.check_queue()
 
@@ -40,9 +38,6 @@ class PopupManager:
 
     # 顯示視窗
     def show_popup(self, user, message, duration=5000):
-        if not self.canPopup:
-            return
-        
         text = f"{user}: {message}"
 
         if self.popup is not None and self.popup.winfo_exists():
@@ -82,7 +77,7 @@ class PopupManager:
     # 更新視窗大小
     def resize_popup(self, text):
         paddingX = 30
-        paddingY = 20
+        paddingY = 25
         min_width = 0    # 最小寬度
         max_width = 600    # 最大寬度
 
@@ -115,17 +110,12 @@ class PopupManager:
     # 快速鍵開啟回覆聊天室用的視窗
     def setup_hotkey(self):
     # 使用 keyboard 全局監聽熱鍵（非 Tkinter 綁定）
-        keyboard.add_hotkey('ctrl+shift+r', lambda: self.root.after(0, self.open_reply_window))
-        keyboard.add_hotkey('ctrl+shift+f', lambda: self.root.after(0, self.toggle_popup))
-
-    # 開關是否顯示彈跳視窗
-    def toggle_popup(self, event=None):
-        self.canPopup = not self.canPopup
-
-        self.bot.send_message_to_chat(global_ws, f"彈窗已{'啟用' if self.canPopup else '關閉'}")
+        keyboard.add_hotkey('ctrl+shift+t', lambda: self.root.after(0, self.open_reply_window))
 
     # 開啟回覆聊天室用的視窗
     def open_reply_window(self, event=None):
+        if hasattr(self, "reply_window") and self.reply_window.winfo_exists():
+            self.reply_window.destroy()
         if not hasattr(self, "reply_window") or not self.reply_window.winfo_exists():
             self.reply_window = tk.Toplevel(self.root)
             self.reply_window.title("")  # 不顯示標題文字
@@ -156,9 +146,9 @@ class PopupManager:
             self.reply_entry.pack(padx=10, pady=20)
 
             # 這段主要是拿來讓我把它叫出來後可以自動選定他，不然原本她還需要點一下
-            self.reply_window.lift()
-            self.reply_window.attributes("-topmost", True)
-            self.reply_window.after_idle(self.reply_window.attributes, '-topmost', False)
+            # self.reply_window.lift()
+            # self.reply_window.attributes("-topmost", True)
+            # self.reply_window.after_idle(self.reply_window.attributes, '-topmost', False)
             self.reply_window.after(100, lambda: (self.reply_entry.focus_force(), self.reply_entry.focus_set()))
 
             # 按下Enter觸發送出
@@ -185,13 +175,13 @@ class TwitchBot:
         self.nickname = BOT_NICK
         self.channel = f"#{CHANNEL}"  # #忘れないように
         self.twitchWebsocketURL = TwitchWebsocketURL
+        self.responses = None
 
         #今日の日付
         self.today = datetime.date.today().strftime('%Y%m%d')
 
         self.popup_manager = None
-        self.responses = self.load_responses('responses.csv')
-
+    
     def set_popup_manager(self, popup_manager):
         self.popup_manager = popup_manager
 
@@ -221,11 +211,11 @@ class TwitchBot:
         ws.send(f"PASS {self.access_token}")
         ws.send(f"NICK {self.nickname}")
         ws.send(f"JOIN {self.channel}")
+        ws.send("CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership")
         print(f"チャット入りました！チャンネルは{self.channel}です！")
         reply = "MrDestructoid チャット入りました！"
         self.send_message_to_chat(ws, reply)
-        threading.Thread(target=self.break_reminder, args=(ws,), daemon=True).start()
-
+        self.responses = self.load_responses('responses.csv')
 
     #WebSocket メッセージ受けた時
     def on_message(self, ws, message):
@@ -240,49 +230,85 @@ class TwitchBot:
             #チャットのユーザーネームとメッセージ分析する #元メッセージ多分こんな感じ :aokitw513!aokitw513@aokitw513.tmi.twitch.tv PRIVMSG #aokitw513 :wow
             try:
                 #ユーザーネームとメッセージをprint
-                user = message.split("!", 1)[0][1:] #[1:]は第一の文字スキップすること ex.hello[1:]=ello [0]なら分割したものの第一部分ですね
-                content = message.split("PRIVMSG", 1)[1].split(":", 1)[1]
-                print(f"{user}: {content.strip()}") #stripはstringの前後の\nとか削除するもの
+                # user = message.split("!", 1)[0][1:] #[1:]は第一の文字スキップすること ex.hello[1:]=ello [0]なら分割したものの第一部分ですね
+                # content = message.split("PRIVMSG", 1)[1].split(":", 1)[1]
+                # print(f"{user}: {content.strip()}") #stripはstringの前後の\nとか削除するもの
+                # print(message)
+                
+                userDisplay = None
+                user = None 
+                content = None
 
-                self.show_popup(user, content.strip())
-            
+                # 先分開 tags 跟 IRC 主體
+                if message.startswith("@"):
+                    tags, rest = message.split(" ", 1)
+                tag_parts = tags.split(";")
+                tag_dict = {}
+                for part in tag_parts:
+                    if "=" in part:
+                        k, v = part.split("=", 1)
+                        tag_dict[k] = v
+
+                # 嘗試拿 display-name
+                userDisplay = tag_dict.get("display-name", None)
+
+                # 主體再解析出訊息內容
+                if "PRIVMSG" in rest:
+                    content = rest.split("PRIVMSG", 1)[1].split(":", 1)[1]
+
+                # 如果沒有 tags，走舊邏輯（帳號名）
+                if not userDisplay:
+                    userDisplay = message.split("!", 1)[0][1:]
+                if not content:
+                    content = message.split("PRIVMSG", 1)[1].split(":", 1)[1]
+
+                user = message.split("!", 1)[0][1:]
+
+                print(f"{userDisplay}: {content.strip()}")
+                print(user)
+
+                #IDK
+                # self.show_popup(user, content.strip())
+
                 #チャットログ
                 with open(self.today + '_chat' + '.txt', 'a', encoding='utf-8-sig') as f :
                     localTime = time.localtime()
-                    f.write(f"{time.strftime('%H:%M:%S --',localTime)} " + user + ': ' + content)
+                    f.write(f"{time.strftime('%H:%M:%S --',localTime)} " + userDisplay + ': ' + content)
 
+                self.save_user(userDisplay)
+                
                 #コマンド
                 """ if content.strip().startswith("安安"):
                     reply = f"{user} ニーハオ！"
                     send_message_to_chat(ws, reply) """
                 reply = self.check_and_reply(message)
                 if reply:
-                    self.send_message_to_chat(ws, f"@{user} {reply}")
+                    self.send_message_to_chat(ws, f"@{userDisplay} {reply}")
 
                 #特殊コマンド
-                # if content.strip().startswith("早安"):
-                #     now = datetime.datetime.now() #今の時間
-                #     hour = now.hour #今何時
-                #     if 5 <= hour < 12:
-                #         reply = f"@{user} 早啊 aokitwGood"
-                #         self.send_message_to_chat(ws, reply)
-                #     else:
-                #         reply = f"@{user} 不是，早個屁，都{hour}點了 aokitwHatena"
-                #         self.send_message_to_chat(ws, reply)
+                if content.strip().startswith("早安"):
+                    now = datetime.datetime.now() #今の時間
+                    hour = now.hour #今何時
+                    if 5 <= hour < 12:
+                        reply = f"@{userDisplay} 早啊 aokitwGood"
+                        self.send_message_to_chat(ws, reply)
+                    else:
+                        reply = f"@{userDisplay} 不是，早個屁，都{hour}點了 aokitwHatena"
+                        self.send_message_to_chat(ws, reply)
 
                 #テスト
-                if (content.strip().startswith("!テスト")  or content.strip().startswith("!test")) and user == CHANNEL:
+                if (content.strip().startswith("!テスト")  or content.strip().startswith("!test")) and userDisplay == CHANNEL:
                     reply = "無事に実行されました！"
                     self.send_message_to_chat(ws, reply)
 
                 #!csv入力すればCSVリセットできる
-                if (content.strip().startswith("!csv") or content.strip().startswith("!CSV")) and user == CHANNEL:
+                if (content.strip().startswith("!csv") or content.strip().startswith("!CSV")) and userDisplay == CHANNEL:
                     self.responses = self.load_responses('responses.csv')
                     reply = "CSVリセットしました！"
                     self.send_message_to_chat(ws, reply)
 
                 #チャットボット終了
-                if content.strip().startswith("!終了") or content.strip().startswith("!close") and user == CHANNEL:
+                if (content.strip().startswith("!終了") or content.strip().startswith("!close")) and userDisplay == CHANNEL:
                     print("終了します")
                     reply = "チャットボット終了します"
                     self.send_message_to_chat(ws, reply)
@@ -290,19 +316,46 @@ class TwitchBot:
                     print("チャットを離れました")
                     ws.close()
 
+                if content.strip().startswith("!user") and userDisplay == CHANNEL:
+                    self.print_users(ws)
+
             except Exception as e:
                 print(f"メッセージ分析失敗: {e}")
+                
+    def save_user(self, user):
+        filename = self.today + "_user.txt"
+
+        # 讀取已經存在的使用者
+        try:
+            with open(filename, "r", encoding="utf-8-sig") as f:
+                existing_users = set(line.strip() for line in f)
+        except FileNotFoundError:
+            existing_users = set()
+
+        # 如果是新使用者，寫入檔案
+        if user not in existing_users:
+            with open(filename, "a", encoding="utf-8-sig") as f:
+                f.write(user + "\n")
+            print(f"新使用者 {user} 已加入 {filename}")
+    
+    def print_users(self, ws):  
+        filename = self.today + "_user.txt"
+        try:
+            with open(filename, "r", encoding="utf-8-sig") as f:
+                users = [line.strip() for line in f if line.strip()]
+            print("今天留言的人:")
+            reply = "今天留言的人"
+            self.send_message_to_chat(ws, reply)
+            for u in users:
+                print(" -", u)
+                reply = f"{u}"
+                self.send_message_to_chat(ws, reply)
+        except FileNotFoundError:
+            print("⚠️ 還沒有任何使用者被記錄")
 
     #チャットにメッセージ送る
     def send_message_to_chat(self, ws, reply):
         ws.send(f"PRIVMSG {self.channel} :{reply}")
-        
-    def break_reminder(self, ws):
-        while True:
-            time.sleep(3600)  # 等待 1 小時
-            reply = "媽的都打一個小時了還打 不去讀書>:("
-            self.send_message_to_chat(ws, reply)
-            print("💡 已發送休息提醒")
 
     #WebSocket エラーの時
     def on_error(ws, error):
@@ -325,12 +378,15 @@ class TwitchBot:
 
 if __name__ == '__main__':
     bot = TwitchBot()
-    popup_manager = PopupManager()
+    # popup_manager = PopupManager()
 
     # 避免循環
-    bot.set_popup_manager(popup_manager)
-    popup_manager.set_bot(bot)
+    # bot.set_popup_manager(popup_manager)
+    
+    bot.set_popup_manager(None)
+    
+    # popup_manager.set_bot(bot)
     # 用子執行緒跑 WebSocket
-    threading.Thread(target=bot.websocket_thread, daemon=True).start()
+    bot.websocket_thread()
     # 主執行緒跑 Tkinter mainloop
-    popup_manager.root.mainloop()
+    # popup_manager.root.mainloop()
